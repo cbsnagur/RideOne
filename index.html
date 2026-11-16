@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RideOne ride compare</title>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700&family=Hind:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* VOICE: a shipped commuter app, brisk and plain-spoken.
+   IDEA: the fare card stuck inside a Bengaluru auto, made live.
+   PICTURE: the working compare list itself, under a small route strip.
+   COLOUR AND TYPE: auto yellow ground, black ink, meter-red accent; Baloo 2 + Hind.
+   LAYOUT: one phone column: trip, priorities, ranked rides, booking sheet. */
+:root{color-scheme:light dark;--bg:light-dark(#ffd21f,#14120a);--ink:light-dark(#17150c,#f6f1dc);--card:light-dark(#fffdf3,#221f12);--line:light-dark(#e6dba8,#3b361f);--mute:light-dark(#5e5838,#b5ad85);--acc:light-dark(#c8201a,#ff6a5e);--best:light-dark(#17150c,#ffd21f);--beston:light-dark(#ffd21f,#17150c)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Hind,system-ui,sans-serif;overflow-x:clip}
+main{max-width:560px;margin:0 auto;padding:18px 16px 48px}
+h1{font:700 34px/1.05 "Baloo 2",system-ui,sans-serif;margin:0}
+h2{font:700 22px/1.1 "Baloo 2",system-ui,sans-serif;margin:22px 0 8px}
+.sub{margin:2px 0 14px;color:var(--mute);font-size:15px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px}
+.trip{display:grid;grid-template-columns:minmax(0,1fr) 48px;gap:10px;align-items:center}
+.trip .f{display:grid;gap:8px}
+label{font-size:13px;color:var(--mute);display:block}
+select{width:100%;height:46px;font:500 16px Hind,sans-serif;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:0 10px}
+button{font:600 15px Hind,sans-serif;color:var(--ink);cursor:pointer}
+button:focus-visible,select:focus-visible,a:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
+#swap{width:48px;height:48px;border-radius:50%;border:1px solid var(--line);background:var(--bg);font-size:20px}
+.fig{position:relative;height:120px;margin-top:12px;border-radius:12px;background:var(--bg);overflow:hidden}
+.fig>svg{position:absolute;inset:0;width:100%;height:100%}
+.meta{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:10px;font-size:15px}
+.meta b{font-weight:600;white-space:nowrap}
+.row{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.chip{min-height:44px;padding:0 14px;border-radius:22px;border:1px solid var(--line);background:var(--card)}
+.chip[aria-pressed=true]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.peak{display:flex;align-items:center;gap:10px;margin-top:12px;min-height:44px;font-size:15px}
+.peak input{width:22px;height:22px;accent-color:var(--acc)}
+.ride{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;margin-top:10px}
+.ride.top{background:var(--best);color:var(--beston);border-color:var(--best)}
+.ride.top .dim{color:inherit;opacity:.8}
+.name{font:700 19px/1.2 "Baloo 2",sans-serif}
+.dim{color:var(--mute);font-size:14px}
+.price{font:700 24px/1.1 "Baloo 2",sans-serif;text-align:right;white-space:nowrap}
+.tag{display:inline-block;font-size:13px;font-weight:600;background:var(--acc);color:#fff;border-radius:6px;padding:1px 8px;margin-bottom:4px}
+.go{grid-column:1/-1;display:flex;align-items:center;justify-content:center;min-height:44px;margin-top:8px;border-radius:10px;border:1px solid currentColor;background:transparent;color:inherit;text-decoration:none;font:600 15px Hind,sans-serif}
+.note{font-size:13px;color:var(--mute);margin-top:14px}
+#sheet{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:flex-end;justify-content:center}
+#sheet.on{display:flex}
+#sheet .card{width:100%;max-width:560px;border-radius:20px 20px 0 0;padding:20px 18px 26px}
+#steps{list-style:none;padding:0;margin:12px 0}
+#steps li{padding:8px 0;border-bottom:1px solid var(--line);color:var(--mute)}
+#steps li.done{color:var(--ink);font-weight:500}
+#close{width:100%;min-height:46px;border-radius:10px;border:0;background:var(--ink);color:var(--bg)}
+@media(prefers-reduced-motion:no-preference){.ride{animation:in .25s ease both}@keyframes in{from{opacity:0;transform:translateY(6px)}}}
+</style>
+</head>
+<body>
+<main>
+<h1>RideOne</h1>
+<p class="sub">One search across Uber, Rapido and Namma Yatri.</p>
+
+<section class="card">
+  <div class="trip">
+    <div class="f">
+      <div><label for="from">Pickup</label><select id="from"></select></div>
+      <div><label for="to">Drop</label><select id="to"></select></div>
+    </div>
+    <button id="swap" aria-label="Swap pickup and drop">&#8645;</button>
+  </div>
+  <div class="fig"><svg id="map" role="img" aria-label="Route sketch"></svg></div>
+  <div class="meta" id="meta"></div>
+  <label class="peak" for="peak"><input type="checkbox" id="peak"> Peak hour (heavier traffic, surge pricing)</label>
+</section>
+
+<h2>Pick what matters</h2>
+<div class="row" id="prio">
+  <button class="chip" data-w="1" aria-pressed="false">Cheapest</button>
+  <button class="chip" data-w="0.5" aria-pressed="true">Balanced</button>
+  <button class="chip" data-w="0" aria-pressed="false">Fastest</button>
+</div>
+<div class="row" id="kind">
+  <button class="chip" data-k="all" aria-pressed="true">All</button>
+  <button class="chip" data-k="bike" aria-pressed="false">Bike</button>
+  <button class="chip" data-k="auto" aria-pressed="false">Auto</button>
+  <button class="chip" data-k="cab" aria-pressed="false">Cab</button>
+</div>
+
+<h2 id="head">Best rides</h2>
+<div id="list"></div>
+<p class="note">Fares and times are illustrative estimates from a simple distance model, not live prices. Uber opens with your trip filled in; Rapido opens its site because it has no public booking link; Namma Yatri booking is a demo until the ONDC connection is built.</p>
+</main>
+
+<div id="sheet" role="dialog" aria-modal="true" aria-labelledby="st">
+  <div class="card">
+    <h2 id="st" style="margin-top:0">Namma Yatri</h2>
+    <div class="dim" id="sd"></div>
+    <ol id="steps"></ol>
+    <p class="note" style="margin:0 0 12px">Demo only. No real ride was booked.</p>
+    <button id="close">Close</button>
+  </div>
+</div>
+
+<script>
+{
+const P=[["Koramangala",12.9352,77.6245],["MG Road",12.9756,77.6066],["Indiranagar",12.9784,77.6408],["Whitefield",12.9698,77.7500],["Electronic City",12.8452,77.6602],["HSR Layout",12.9116,77.6474],["Jayanagar",12.9308,77.5838],["Majestic (KSR station)",12.9766,77.5713],["Hebbal",13.0358,77.5970],["Yeshwanthpur",13.0280,77.5409],["Marathahalli",12.9569,77.7011],["BTM Layout",12.9166,77.6101],["Malleshwaram",13.0031,77.5643],["Kempegowda Airport",13.1986,77.7066]];
+const meter=d=>Math.max(30,30+15*(d-2));
+// kind, app, name, fare(d km, t min), pickup wait min, speed km/h, surges
+const R=[
+ ["auto","ny","Namma Yatri Auto",(d)=>meter(d)+10,4,20,0],
+ ["cab","ny","Namma Yatri Cab",(d,t)=>50+15*d+t,7,18,0],
+ ["bike","rapido","Rapido Bike",(d)=>20+6*d,3,24,1],
+ ["auto","rapido","Rapido Auto",(d)=>meter(d)*1.08+5,5,20,1],
+ ["cab","rapido","Rapido Cab",(d,t)=>55+15*d+1.2*t,7,18,1],
+ ["bike","uber","Uber Moto",(d)=>22+6.5*d,4,24,1],
+ ["auto","uber","Uber Auto",(d)=>meter(d)*1.15+10,5,20,1],
+ ["cab","uber","Uber Go",(d,t)=>60+16*d+1.5*t,6,18,1]];
+const $=i=>document.getElementById(i),from=$("from"),to=$("to"),peak=$("peak");
+let w=0.5,kind="all";
+const opts=P.map((p,i)=>`<option value="${i}">${p[0]}</option>`).join("");
+from.innerHTML=opts;to.innerHTML=opts;from.value=0;to.value=1;
+try{const s=JSON.parse(localStorage.getItem("rideone")||"null");if(s){from.value=s.f;to.value=s.t}}catch(e){}
+const km=(a,b)=>{const r=Math.PI/180,x=(b[2]-a[2])*r*Math.cos((a[1]+b[1])/2*r),y=(b[1]-a[1])*r;return Math.sqrt(x*x+y*y)*6371*1.35};
+const link=(app,a,b)=>{
+  if(app==="uber"){const q=new URLSearchParams({action:"setPickup","pickup[latitude]":a[1],"pickup[longitude]":a[2],"pickup[nickname]":a[0],"dropoff[latitude]":b[1],"dropoff[longitude]":b[2],"dropoff[nickname]":b[0]});return "https://m.uber.com/ul/?"+q}
+  return "https://www.rapido.bike/"};
+const draw=()=>{
+  const s=$("map"),W=s.clientWidth,H=s.clientHeight,a=P[+from.value],b=P[+to.value];
+  const xs=P.map(p=>p[2]),ys=P.map(p=>p[1]),x0=Math.min(...xs),x1=Math.max(...xs),y0=Math.min(...ys),y1=Math.max(...ys);
+  const X=p=>14+(p[2]-x0)/(x1-x0)*(W-28),Y=p=>H-14-(p[1]-y0)/(y1-y0)*(H-28);
+  s.innerHTML=P.map(p=>`<circle cx="${X(p)}" cy="${Y(p)}" r="3" fill="currentColor" opacity=".25"/>`).join("")+
+   `<line x1="${X(a)}" y1="${Y(a)}" x2="${X(b)}" y2="${Y(b)}" stroke="currentColor" stroke-width="3" stroke-dasharray="2 7" stroke-linecap="round"/>`+
+   `<circle cx="${X(a)}" cy="${Y(a)}" r="8" fill="currentColor"/><circle cx="${X(b)}" cy="${Y(b)}" r="8" fill="var(--acc)"/>`;
+};
+const render=()=>{
+  const a=P[+from.value],b=P[+to.value],list=$("list");
+  try{localStorage.setItem("rideone",JSON.stringify({f:from.value,t:to.value}))}catch(e){}
+  draw();
+  if(a===b){$("meta").innerHTML="";$("head").textContent="Best rides";list.innerHTML='<div class="card">Pickup and drop are the same place. Choose a different drop to compare rides.</div>';return}
+  const d=km(a,b),pk=peak.checked;
+  $("meta").innerHTML=`<span>Road distance <b>about ${d.toFixed(1)} km</b></span><span>${a[0]} to ${b[0]}</span>`;
+  let rows=R.filter(r=>kind==="all"||r[0]===kind).map(r=>{
+    const trip=d/(r[5]*(pk?0.7:1))*60,wait=r[4]*(pk?1.5:1);
+    const fare=Math.round(r[3](d,trip)*(pk&&r[6]?1.3:1)/5)*5;
+    return {k:r[0],app:r[1],name:r[2],fare,wait:Math.round(wait),total:Math.round(wait+trip)}});
+  const mn=(k)=>Math.min(...rows.map(r=>r[k])),mx=(k)=>Math.max(...rows.map(r=>r[k]));
+  const n=(r,k)=>mx(k)===mn(k)?0:(r[k]-mn(k))/(mx(k)-mn(k));
+  rows.forEach(r=>r.s=w*n(r,"fare")+(1-w)*n(r,"total"));
+  rows.sort((p,q)=>p.s-q.s||p.fare-q.fare);
+  $("head").textContent=rows.length+" rides, best first";
+  list.innerHTML=rows.map((r,i)=>{
+    const act=r.app==="ny"?`<button class="go" data-ny="${r.name}|${r.fare}">Book on Namma Yatri (demo)</button>`
+      :`<a class="go" target="_blank" rel="noopener" href="${link(r.app,a,b)}">${r.app==="uber"?"Continue in Uber":"Open Rapido"}</a>`;
+    return `<div class="card ride${i?"":" top"}"><div>${i?"":'<span class="tag">Best match</span><br>'}<span class="name">${r.name}</span><div class="dim">Pickup in ${r.wait} min &middot; arrive in about ${r.total} min</div></div><div class="price">&#8377;${r.fare}</div>${act}</div>`}).join("");
+};
+const press=(box,fn)=>$(box).addEventListener("click",e=>{const b=e.target.closest(".chip");if(!b)return;[...$(box).children].forEach(c=>c.setAttribute("aria-pressed",c===b));fn(b);render()});
+press("prio",b=>w=+b.dataset.w);press("kind",b=>kind=b.dataset.k);
+[from,to,peak].forEach(el=>el.addEventListener("change",render));
+$("swap").addEventListener("click",()=>{const v=from.value;from.value=to.value;to.value=v;render()});
+let timers=[];
+$("list").addEventListener("click",e=>{
+  const b=e.target.closest("[data-ny]");if(!b)return;
+  const [name,fare]=b.dataset.ny.split("|"),S=["Searching the ONDC network for drivers","Driver offers received","Fare of ₹"+fare+" selected","Demo ride confirmed"];
+  $("st").textContent=name;$("sd").textContent=P[+from.value][0]+" to "+P[+to.value][0];
+  $("steps").innerHTML=S.map(s=>`<li>${s}</li>`).join("");$("sheet").classList.add("on");
+  timers.forEach(clearTimeout);timers=S.map((s,i)=>setTimeout(()=>$("steps").children[i].classList.add("done"),500+i*800));
+});
+const shut=()=>{$("sheet").classList.remove("on");timers.forEach(clearTimeout)};
+$("close").addEventListener("click",shut);$("sheet").addEventListener("click",e=>{if(e.target.id==="sheet")shut()});
+new ResizeObserver(draw).observe($("map"));
+render();
+}
+</script>
+</body>
+</html>
